@@ -349,3 +349,67 @@ def test_queued_jobs_resume_after_restart(tmp_path):
             assert Knowledge(ws['graph_name']).search('survives')
     finally:
         Knowledge(ws['graph_name']).graph.delete()
+
+
+def test_repository_listing_pages_and_unwraps_installation_payload():
+    import httpx
+    from app.connectors import GitHub
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        page = int(request.url.params['page'])
+        seen.append((request.url.path, page, request.url.params['per_page']))
+        count = 50 if page < 3 else 7  # two full pages, then a short final page
+        repos = [{'full_name': f'o/r{page}-{i}', 'description': None, 'private': False, 'updated_at': 't'} for i in range(count)]
+        return httpx.Response(200, json={'total_count': 107, 'repositories': repos})
+
+    client = GitHub('token')
+    client.client = httpx.Client(base_url='https://api.github.com', transport=httpx.MockTransport(handler))
+    names = []
+    for page in (1, 2, 3):
+        names += [r['full_name'] for r in client.repositories(page, installation=True)]
+    assert len(names) == 107 and len(set(names)) == 107
+    assert seen == [('/installation/repositories', p, '50') for p in (1, 2, 3)]
+    assert client.repositories(0, installation=True)  # page is clamped to 1
+    assert seen[-1][1] == 1
+
+
+def test_change_to_reviewed_task_scenario(product):
+    """Source change -> comparison -> impacted entities -> agent evidence -> reviewed task -> status update."""
+    client, ctl, ws = product
+    base = f"/api/w/{ws['id']}"
+    graph = Knowledge(ws['graph_name'])
+    deps = {'nodes': [{'id': 'pay', 'name': 'Payments', 'type': 'Service'}, {'id': 'co', 'name': 'Checkout', 'type': 'Service'}],
+            'edges': [{'source': 'co', 'target': 'pay', 'type': 'DEPENDS_ON', 'evidence': 'Checkout depends on Payments'}]}
+    upload = client.post(base + '/sources/upload', files={'file': ('deps.json', json.dumps(deps).encode(), 'application/json')})
+    wait_job(client, ws['id'], upload.json()['job_id'])
+    upload_text(client, ws, 'roadmap.md', 'Payments migration ships in May. Checkout depends on Payments.')
+    roadmap = next(s for s in client.get(base + '/sources').json() if s['title'] == 'roadmap.md')
+    before = client.get(base + '/sources/' + roadmap['id']).json()['history'][0]['hash']
+    # 1. A source changes.
+    upload_text(client, ws, 'roadmap.md', 'Payments migration slips to August. Checkout depends on Payments.')
+    # 2. Comparison shows exactly what changed.
+    diff = client.get(base + f"/sources/{roadmap['id']}/diff", params={'before_hash': before}).json()
+    assert diff['added'] == 1 and diff['removed'] == 1
+    # 3. Impact of the changed subject.
+    pay = graph.entity_search('Payments')[0]['e']['id']
+    impacted = client.get(base + '/graph/impact', params={'entity_id': pay}).json()
+    assert [i['name'] for i in impacted['items']] == ['Checkout']
+    # 4. Agent answers with evidence from the current version and proposes a task.
+    source_id = roadmap['id']
+    agent = ctl.rows('SELECT * FROM agents WHERE workspace_id=?', (ws['id'],))[0]
+    model = FakeListChatModel(responses=[
+        '{"tool":"search_sources","arguments":{"query":"Payments migration"}}', '{"tool":"done"}',
+        json.dumps({'answer': 'The Payments migration slipped to August; Checkout depends on it.', 'source_ids': [source_id],
+                    'review_tasks': [{'title': 'Re-plan Checkout around the August Payments date', 'reason': 'Roadmap changed May to August', 'source_id': source_id}]})])
+    result = WorkspaceAgent(ctl, ws, agent, model=model).run('What changed for Checkout?')
+    assert any('August' in c['quote'] for c in result['citations']) and not any('May' in c['quote'] for c in result['citations'])
+    assert len(result['proposals']) == 1
+    # 5. Reviewed: nothing exists until approval.
+    assert client.get(base + '/tasks').json() == []
+    assert client.post(base + f"/reviews/{result['proposals'][0]}", json={'approve': True}).status_code == 200
+    # 6. Status update persists.
+    task = client.get(base + '/tasks').json()[0]
+    assert task['status'] == 'open' and task['source_id'] == source_id
+    client.patch(base + f"/tasks/{task['id']}", json={'status': 'done'})
+    assert client.get(base + '/tasks').json()[0]['status'] == 'done'

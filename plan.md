@@ -19,7 +19,7 @@ The local product works with real data and a connected GitHub App. The full plan
 
 ### Verification evidence
 
-- Latest checkpoint: `python -m pytest -q` using `.venv` → **37 passed** (adds diff, impact, task-lifecycle, conflict, format/parser-error and job-recovery tests); `npm run build` in `frontend` → **passed** on October 17. A JSX syntax error in the repository pagination button was corrected before this build.
+- Latest checkpoint: `python -m pytest -q` using `.venv` → **39 passed** (adds paging, end-to-end scenario, diff, impact, task-lifecycle, conflict, format/parser-error and job-recovery tests); `npm run build` in `frontend` → **passed** on October 17. A JSX syntax error in the repository pagination button was corrected before this build.
 - Product tests cover uploads, source versioning/deduplication, archive/reimport, graph write rejection, workspace isolation, secret redaction, retrieval, LangChain fake-model planning and approved task persistence. GitHub App tests cover state, JWTs, temporary tokens and the nullable webhook-secret regression. The total also includes the retained Atlas fixture tests; it is not 15 end-to-end product scenarios.
 - Live GitHub App sync of `FalkorDB/falkordb`: **7 sources, 51 nodes, 53 relationships before enrichment**. These are observations from that bounded import, not fixed application totals.
 - Live OpenRouter free-model agent run: **connected** model status, **8 cited evidence passages**, **2 tool calls**. Retrieval fallback was checked separately.
@@ -76,7 +76,7 @@ Status: installed and live sync verified.
 - [x] Manual incremental re-sync with source version retention and explicit item limits.
 - [x] User completed real GitHub App creation and installation.
 - [x] Live public `FalkorDB/falkordb` import: 7 sources, 51 nodes, 53 relationships before optional enrichment; graph query and retrieval succeeded.
-- [ ] Browser-check repository filtering and loading subsequent pages; the current implementation builds successfully.
+- [x] Repository paging tested against a mocked GitHub API (50-per-page requests, installation payload unwrapped, 107 repositories across 3 pages, page clamped). Browser check of the Load-more button against a live installation with more than 50 repositories is still outstanding.
 - [ ] Optional later: automatic webhook/scheduled sync, installation lifecycle events, deleted-source reconciliation, and multi-installation management.
 - Gate: live repository access and ingestion use installation authentication; approved repository access remains controlled in GitHub.
 
@@ -117,7 +117,7 @@ Status: backend code exists; these features are not complete product flows.
 - [x] Tested: direction, predicate filter, depth limit, no graph mutation.
 - [x] Task listing and status-update endpoints with audit events.
 - [x] Task list with status selector in the Review queue (browser-verified on a scratch instance); persistence, validation and cross-workspace rejection tested.
-- [ ] Complete an end-to-end scenario using newly ingested data: source change → comparison → impacted entities → agent evidence → reviewed task → status update.
+- [x] End-to-end scenario test on newly ingested data (source change → diff → impacted entities → agent evidence from the current version only → reviewed task → status update). The agent step uses a LangChain fake model; a live-model run of this scenario has not been done.
 - Gate: all three features are usable from the product, backed by targeted tests and demonstrated on user-ingested data. Dependency traversal alone does not satisfy generic contradiction detection or broad counterfactual reasoning.
 
 ## Phase 6 — Quality and packaging
