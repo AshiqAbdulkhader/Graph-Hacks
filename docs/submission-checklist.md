@@ -4,7 +4,7 @@ Source: https://www.wemakedevs.org/hackathons/falkordb/rules — window Oct 15 1
 
 | Requirement | Status |
 | --- | --- |
-| Public source repository | **Pending** — repository is currently private; make it public |
+| Public source repository | Done — https://github.com/AshiqAbdulkhader/Graph-Hacks is public |
 | README with setup and graph data model | Done (README) |
 | Cypher queries the product depends on | Done (README, `app/knowledge.py`) |
 | Demo video of the working project | **Pending** — not recorded |
