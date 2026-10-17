@@ -246,3 +246,106 @@ def test_relationship_changes_and_conflict_candidates(product):
     assert [r['object'] for r in changes['added']] == ['Sam'] and [r['object'] for r in changes['removed']] == ['Jules']
     other = client.post('/api/workspaces', json={'name': 'Other'}).json()
     assert client.get(f"/api/w/{other['id']}/sources/{source['id']}/changes").status_code == 404
+
+
+def make_pdf(text: str | None) -> bytes:
+    """Minimal single-page PDF; text=None gives a blank (scanned-like) page."""
+    stream = b'' if text is None else f'BT /F1 12 Tf 20 100 Td ({text}) Tj ET'.encode()
+    objs = [b'<</Type/Catalog/Pages 2 0 R>>', b'<</Type/Pages/Kids[3 0 R]/Count 1>>',
+            b'<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 200]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>',
+            b'<</Length %d>>\nstream\n' % len(stream) + stream + b'\nendstream', b'<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>']
+    out, offsets = b'%PDF-1.4\n', []
+    for i, o in enumerate(objs, 1):
+        offsets.append(len(out))
+        out += b'%d 0 obj\n' % i + o + b'\nendobj\n'
+    xref = len(out)
+    out += b'xref\n0 %d\n0000000000 65535 f \n' % (len(objs) + 1) + b''.join(b'%010d 00000 n \n' % o for o in offsets)
+    return out + b'trailer<</Size %d/Root 1 0 R>>\nstartxref\n%d\n%%%%EOF' % (len(objs) + 1, xref)
+
+
+def make_docx() -> bytes:
+    import io
+    from docx import Document
+    doc = Document()
+    doc.add_paragraph('Orbit launch plan owned by Jules')
+    table = doc.add_table(rows=1, cols=2)
+    table.rows[0].cells[0].text, table.rows[0].cells[1].text = 'Budget', '42'
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+@pytest.mark.parametrize('name,data,expected', [
+    ('n.md', b'# Orbit\nJules owns it', 'Jules owns it'),
+    ('n.txt', b'plain Orbit text', 'plain Orbit text'),
+    ('n.rst', b'Orbit\n=====\nrst text', 'rst text'),
+    ('n.log', b'2026-10-17 INFO orbit started', 'orbit started'),
+    ('n.yaml', b'project: orbit\nowner: jules', 'owner: jules'),
+    ('n.yml', b'project: orbit', 'project: orbit'),
+    ('n.csv', b'id,name\n1,Orbit\n', 'Orbit'),
+    ('n.json', b'{"id":"1","name":"Orbit"}', 'Orbit'),
+    ('n.pdf', make_pdf('Orbit pdf text'), 'Orbit pdf text'),
+    ('n.docx', make_docx(), 'Budget | 42'),
+], ids=['md','txt','rst','log','yaml','yml','csv','json','pdf','docx'])
+def test_every_advertised_format_parses(name, data, expected):
+    text, _ = parse_file(name, data)
+    assert expected in text
+
+
+@pytest.mark.parametrize('name,data,message', [
+    ('blank.pdf', make_pdf(None), 'OCR'),
+    ('empty.txt', b'   \n', 'No readable text'),
+    ('bad.json', b'{not json', ''),
+    ('corrupt.pdf', b'%PDF-1.4 garbage', 'corrupt or encrypted'),
+    ('corrupt.docx', b'not a zip', 'corrupt or encrypted'),
+    ('tool.exe', b'MZ', 'Supported formats'),
+], ids=['blank-pdf','empty','bad-json','corrupt-pdf','corrupt-docx','exe'])
+def test_parser_errors_are_rejected(name, data, message):
+    with pytest.raises(ValueError) as err:
+        parse_file(name, data)
+    assert message in str(err.value)
+
+
+def test_failed_job_reports_clearly_and_retries(product):
+    client, ctl, ws = product
+    base = f"/api/w/{ws['id']}"
+    response = client.post(base + '/sources/upload', files={'file': ('bad.json', b'{broken', 'application/json')})
+    job_id = response.json()['job_id']
+    for _ in range(100):
+        job = next(j for j in client.get(base + '/jobs').json() if j['id'] == job_id)
+        if job['status'] == 'failed':
+            break
+        time.sleep(.03)
+    assert job['status'] == 'failed' and job['message']
+    assert client.post(base + f'/jobs/{job_id}/retry').status_code == 200  # still invalid: fails again, visibly
+    for _ in range(100):
+        job = next(j for j in client.get(base + '/jobs').json() if j['id'] == job_id)
+        if job['status'] == 'failed' and 'Retry' not in job['message']:
+            break
+        time.sleep(.03)
+    assert job['status'] == 'failed'
+    assert client.post(base + '/jobs/missing/retry').status_code == 400
+    # Replace the stored bytes with valid content; a retry now succeeds.
+    file_id = json.loads(ctl.rows('SELECT payload FROM jobs WHERE id=?', (job_id,))[0]['payload'])['file_id']
+    (ctl.directory / 'uploads' / file_id).write_bytes(b'{"id":"1","name":"Orbit"}')
+    assert client.post(base + f'/jobs/{job_id}/retry').status_code == 200
+    wait_job(client, ws['id'], job_id)
+    assert client.get(base + '/sources').json()[0]['title'] == 'bad.json'
+
+
+def test_queued_jobs_resume_after_restart(tmp_path):
+    with TestClient(create_app(tmp_path)) as first:
+        first.post('/api/auth/setup', json={'name': 'Owner', 'email': 'o@example.test', 'password': 'Test password 123'})
+        ws = first.get('/api/workspaces').json()[0]
+        ctl = first.app.state.control
+        (ctl.directory / 'uploads').mkdir(exist_ok=True)
+        (ctl.directory / 'uploads' / 'file_restart').write_bytes(b'Orbit survives restarts')
+        job_id = ctl.job(ws['id'], 'upload', {'file_id': 'file_restart', 'filename': 'restart.txt'})  # never submitted: simulates a crash
+        assert ctl.rows('SELECT status FROM jobs WHERE id=?', (job_id,))[0]['status'] == 'queued'
+    try:
+        with TestClient(create_app(tmp_path)) as second:
+            second.post('/api/auth/login', json={'email': 'o@example.test', 'password': 'Test password 123'})
+            wait_job(second, ws['id'], job_id)
+            assert Knowledge(ws['graph_name']).search('survives')
+    finally:
+        Knowledge(ws['graph_name']).graph.delete()

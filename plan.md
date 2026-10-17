@@ -19,7 +19,7 @@ The local product works with real data and a connected GitHub App. The full plan
 
 ### Verification evidence
 
-- Latest checkpoint: `python -m pytest -q` using `.venv` → **19 passed** (adds diff, impact, task-lifecycle and conflict tests); `npm run build` in `frontend` → **passed** on October 17. A JSX syntax error in the repository pagination button was corrected before this build.
+- Latest checkpoint: `python -m pytest -q` using `.venv` → **37 passed** (adds diff, impact, task-lifecycle, conflict, format/parser-error and job-recovery tests); `npm run build` in `frontend` → **passed** on October 17. A JSX syntax error in the repository pagination button was corrected before this build.
 - Product tests cover uploads, source versioning/deduplication, archive/reimport, graph write rejection, workspace isolation, secret redaction, retrieval, LangChain fake-model planning and approved task persistence. GitHub App tests cover state, JWTs, temporary tokens and the nullable webhook-secret regression. The total also includes the retained Atlas fixture tests; it is not 15 end-to-end product scenarios.
 - Live GitHub App sync of `FalkorDB/falkordb`: **7 sources, 51 nodes, 53 relationships before enrichment**. These are observations from that bounded import, not fixed application totals.
 - Live OpenRouter free-model agent run: **connected** model status, **8 cited evidence passages**, **2 tool calls**. Retrieval fallback was checked separately.
@@ -61,8 +61,8 @@ Status: implemented; document/structured ingestion and versioning verified.
 - [x] CSV/JSON records and declared JSON nodes/edges become entities and graph relationships.
 - [x] Optional AI enrichment with exact-source-quote validation and a visible passage budget (default 6; API maximum 30).
 - [x] Source inspector, history, text editing, and archive with retained evidence.
-- [ ] Exercise each advertised document format with representative files, including parser errors and empty/scanned PDF behavior.
-- [ ] Explicitly verify queued-job recovery across a server restart and retry after a failed import.
+- [x] Each advertised format parses a generated representative file; tested errors: blank/scanned PDF, empty text, invalid JSON, corrupt PDF/DOCX (clear message), unsupported type. Browser upload of each format not repeated.
+- [x] Tested: a queued job resumes after app restart; a failed job shows its message and can be retried to success.
 - Gate: upload unrelated user data and query its nodes, edges, and current/historical provenance without changing code.
 
 ## Phase 3 — GitHub App connector

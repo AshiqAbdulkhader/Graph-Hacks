@@ -37,6 +37,15 @@ class Extraction(BaseModel):
 
 
 def parse_file(filename: str, data: bytes) -> tuple[str, list[dict] | dict | None]:
+    try:
+        return _parse_file(filename, data)
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError(f"{filename} could not be read as a {Path(filename).suffix.lower().lstrip('.').upper()} file; it may be corrupt or encrypted") from exc
+
+
+def _parse_file(filename: str, data: bytes) -> tuple[str, list[dict] | dict | None]:
     ext = Path(filename).suffix.lower()
     if ext not in SUPPORTED:
         raise ValueError("Supported formats: Markdown, text, CSV, JSON, PDF, DOCX, RST, logs and YAML")
