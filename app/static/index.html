@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DecisionTrail — follow decisions through to action</title>
+  <style>
+    :root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#173027;background:#f5f7f3}*{box-sizing:border-box}
+    body{margin:0}header{background:#0d3429;color:#f6f7ed;padding:26px max(22px,calc((100vw - 1200px)/2));display:flex;justify-content:space-between;gap:20px;align-items:end}
+    header h1{margin:0;font-size:32px;letter-spacing:-1.4px}header p{margin:5px 0 0;color:#b9d1c5;font-size:14px}.tag{background:#c9ef83;color:#18371b;border-radius:50px;padding:8px 12px;font-weight:700;font-size:12px}
+    main{max-width:1200px;margin:auto;padding:26px 22px 70px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.card{background:white;border:1px solid #dce5dd;border-radius:16px;padding:22px;box-shadow:0 4px 18px #17302709;margin-bottom:18px}.card h2{margin:0 0 8px;font-size:21px;letter-spacing:-.4px}.muted{color:#667b70;font-size:14px;line-height:1.5}.eyebrow{text-transform:uppercase;font-size:11px;letter-spacing:1.8px;font-weight:800;color:#5e8064;margin-bottom:10px}
+    label{display:block;font-size:13px;font-weight:700;margin:14px 0 6px}input,textarea{width:100%;padding:11px 12px;border:1px solid #c7d5c9;border-radius:9px;font:inherit;background:#fcfdfb;color:#173027}textarea{min-height:72px;resize:vertical}button{cursor:pointer;border:0;border-radius:9px;padding:10px 15px;background:#174e3b;color:white;font:inherit;font-weight:700}button.secondary{background:#eaf1e9;color:#23513f}button:disabled{opacity:.5;cursor:not-allowed}.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.row button{margin-top:14px}.status{padding:9px 12px;border-radius:9px;background:#edf5e6;color:#31592f;font-size:13px;margin-top:14px}.error{background:#fff0e9;color:#963d1e}
+    .metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric{background:#eff5ee;padding:13px;border-radius:10px}.metric strong{font-size:23px;display:block}.metric span{font-size:12px;color:#597264}.item{border:1px solid #e0e8df;border-radius:11px;padding:13px;margin:10px 0}.item strong{display:block}.item small{color:#6a7e70}.path{font-family:Consolas,monospace;font-size:12px;line-height:1.6;color:#316347;overflow-wrap:anywhere;background:#f1f6ef;padding:9px;border-radius:7px;margin-top:8px}.pill{display:inline-block;background:#e6f1db;color:#365b28;padding:4px 8px;border-radius:30px;font-size:11px;font-weight:800;margin-left:6px}.pill.warn{background:#fff0d6;color:#8a5716}.split{display:grid;grid-template-columns:1fr 1fr;gap:12px}.change{border:1px solid #dce5dd;padding:13px;border-radius:10px}.change strong{display:block;font-size:20px;margin-top:4px}.change.after{background:#eff8e7;border-color:#bcdaab}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;background:#f4f6f2;padding:12px;border-radius:8px}footer{color:#6d8073;font-size:12px;margin-top:15px}
+    @media(max-width:760px){header{align-items:start;flex-direction:column}.grid{grid-template-columns:1fr}.metric-grid{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body>
+  <header><div><h1>DecisionTrail</h1><p>Follow a company decision through its work, knowledge, and people.</p></div><span class="tag">Graph Hacks · Tracks 1 + 3</span></header>
+  <main>
+    <div class="card"><div class="eyebrow">Synthetic company · Atlas launch</div><h2>A decision changed. What else changes?</h2><p class="muted">Explore a fictional product launch. Every impact below comes from a relationship in FalkorDB. Proposed updates require a reviewer.</p><div id="health" class="status">Connecting to the graph…</div></div>
+    <div class="grid">
+      <section class="card"><div class="eyebrow">01 / Decision</div><h2>Change the launch date</h2><div id="decision"></div><label for="newDate">New launch date</label><input id="newDate" type="date" value="2026-10-23"><label for="sourceText">Decision source</label><textarea id="sourceText">The Atlas launch moves to Friday, October 23 because localization needs two more days.</textarea><div class="row"><button class="secondary" id="previewButton">Preview impact</button><button id="commitButton">Record decision</button></div><div id="decisionStatus"></div></section>
+      <section class="card"><div class="eyebrow">02 / Ask</div><h2>Question the company brain</h2><p class="muted">Try “What is affected?”, “Which documents are stale?”, or “What was the previous decision?”</p><label for="question">Your question</label><input id="question" value="What is affected by the launch change?"><button id="askButton" style="margin-top:12px">Ask DecisionTrail</button><div id="answer"></div></section>
+    </div>
+    <div class="grid">
+      <section class="card"><div class="eyebrow">03 / Ripple</div><h2>Connected impact</h2><div id="impact" class="muted">Preview or record a decision to show dependency paths.</div></section>
+      <section class="card"><div class="eyebrow">04 / Knowledge upkeep</div><h2>Claims needing review</h2><div id="drift" class="muted">A new decision can reveal claims that still cite an older one.</div></section>
+    </div>
+    <section class="card"><div class="eyebrow">05 / Action</div><h2>Reviewable updates</h2><p class="muted">These are drafts based on recorded dependencies. Approval changes only this synthetic workspace.</p><div id="actions">No draft actions yet.</div></section>
+    <footer>DecisionTrail demo data is entirely fictional. A dependency path is recorded evidence, not proof of real-world causation.</footer>
+  </main>
+  <script>
+    const $=id=>document.getElementById(id);
+    const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    let currentId=null;
+    async function api(url,options={}){const r=await fetch(url,{headers:{'Content-Type':'application/json'},...options});const j=await r.json();if(!r.ok)throw new Error(j.detail||r.statusText);return j}
+    function message(id,text,bad=false){$(id).innerHTML=`<div class="status ${bad?'error':''}">${esc(text)}</div>`}
+    function dateWord(v){return v||'Unknown'}
+    async function refresh(){
+      try{const [health,h]=await Promise.all([api('/api/health'),api('/api/decisions/atlas-launch/history')]);
+        message('health',`FalkorDB connected · ${health.nodes} nodes · ${health.edges} relationships`);
+        const c=h.current;currentId=c?.id||null;
+        $('decision').innerHTML=c?`<div class="split"><div class="change"><small>Current plan</small><strong>${esc(dateWord(c.value))}</strong><small>${esc(c.statement)}</small></div><div class="change after"><small>Proposed</small><strong id="dateMirror">${esc($('newDate').value)}</strong><small>See the ripple before recording</small></div></div><p class="muted">Source: ${esc(c.source_id||'unknown')} · valid from ${esc(c.valid_from)}</p>`:'No decision found. Run the seed command.';
+        if(currentId){await loadImpact(currentId);await loadDrift(currentId);await loadActions(currentId)}
+      }catch(e){message('health',e.message,true)}
+    }
+    async function loadImpact(id){const result=await api(`/api/decisions/${encodeURIComponent(id)}/impact`);const items=result.items||[];$('impact').innerHTML=`<div class="metric-grid"><div class="metric"><strong>${items.length}</strong><span>connected items</span></div><div class="metric"><strong>${items.filter(x=>!x.owner).length}</strong><span>missing owners</span></div><div class="metric"><strong>${Math.max(0,...items.map(x=>x.hops))}</strong><span>maximum hops</span></div></div>`+items.map(x=>`<div class="item"><strong>${esc(x.name)} <span class="pill">${esc(x.labels?.[0]||'Work')}</span>${!x.owner?'<span class="pill warn">Owner unknown</span>':''}</strong><small>Due ${esc(x.due_at||'unknown')} · Owner ${esc(x.owner||'unknown')}</small><div class="path">${x.path.map(esc).join(' → ')}</div></div>`).join('')}
+    async function loadDrift(id){const result=await api(`/api/decisions/${encodeURIComponent(id)}/drift`);$('drift').innerHTML=result.items.length?result.items.map(x=>`<div class="item"><strong>${esc(x.source)}</strong><small>Owner: ${esc(x.owner||'unknown')} · Status: ${esc(x.status)}</small><div class="path">“${esc(x.quote)}”</div><small>Supported by ${esc(x.old_decision_id)} · Now superseded</small></div>`).join(''):'No stale claims recorded for this decision.'}
+    async function loadActions(id){const items=await api(`/api/actions?decision_id=${encodeURIComponent(id)}`);$('actions').innerHTML=items.length?items.map(x=>`<div class="item"><strong>${esc(x.name)} <span class="pill ${x.status==='needs_owner'?'warn':''}">${esc(x.status)}</span></strong><small>Owner: ${esc(x.owner||'unknown')} · Target: ${esc(x.target)}</small><div class="path">${JSON.parse(x.path_json||'[]').map(esc).join(' → ')}</div>${x.status==='pending'||x.status==='needs_owner'?`<div class="row"><button ${x.status==='needs_owner'?'disabled':''} onclick="reviewAction('${esc(x.id)}',true)">Approve</button><button class="secondary" onclick="reviewAction('${esc(x.id)}',false)">Reject</button></div>`:''}</div>`).join(''):'No draft actions yet.'}
+    async function reviewAction(id,approve){try{await api(`/api/actions/${encodeURIComponent(id)}/review`,{method:'POST',body:JSON.stringify({approve,reviewer:'Demo reviewer',reason:'Reviewed in DecisionTrail'})});await refresh()}catch(e){message('decisionStatus',e.message,true)}}
+    $('newDate').addEventListener('input',()=>{const x=$('dateMirror');if(x)x.textContent=$('newDate').value});
+    $('previewButton').onclick=async()=>{try{const p=await api('/api/decisions/preview',{method:'POST',body:JSON.stringify({topic:'atlas-launch',value:$('newDate').value})});message('decisionStatus',`Simulation only: ${p.affected.length} connected items; date shift ${p.delta_days} days. No data changed.`);$('impact').innerHTML=`<p class="status">Counterfactual preview · no graph writes</p>`+p.affected.map(x=>`<div class="item"><strong>${esc(x.name)}</strong><div class="path">${x.path.map(esc).join(' → ')}</div></div>`).join('')}catch(e){message('decisionStatus',e.message,true)}};
+    $('commitButton').onclick=async()=>{try{const body={topic:'atlas-launch',value:$('newDate').value,source_text:$('sourceText').value,effective_at:new Date().toISOString(),event_id:crypto.randomUUID()};const r=await api('/api/decisions/commit',{method:'POST',body:JSON.stringify(body)});message('decisionStatus',`Decision recorded: ${r.decision_id}`);await refresh()}catch(e){message('decisionStatus',e.message,true)}};
+    $('askButton').onclick=async()=>{try{$('answer').innerHTML='<p class="muted">Investigating graph…</p>';const r=await api('/api/questions',{method:'POST',body:JSON.stringify({question:$('question').value})});$('answer').innerHTML=`<div class="status">${esc(r.answer)}</div><details><summary>Tool trace and evidence</summary><pre>${esc(JSON.stringify(r.trace,null,2))}</pre><pre>${esc(JSON.stringify(r.evidence,null,2))}</pre></details>`}catch(e){message('answer',e.message,true)}};
+    refresh();
+  </script>
+</body>
+</html>
