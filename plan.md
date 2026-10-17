@@ -127,10 +127,10 @@ Status: backend code exists; these features are not complete product flows.
 - [x] Browser check of CLI sign-in, GitHub App registration/installation, repository list, graph rendering, and query-rendered subgraph.
 - [x] Verify live free-model response and bounded enrichment; record actual outcomes in this checkpoint.
 - [x] Document current product setup, architecture, environment template, data formats and limits; README includes the live graph screenshot and verification notes.
-- [ ] Update documentation again when Phase 5A and advanced analysis become verified product features.
+- [x] Documentation updated for diff, impact, conflict candidates and tasks (README, architecture).
 - [ ] Run final browser verification of upload → graph query → live agent → review → task lifecycle, with failures and partial coverage visible.
 - [ ] Record a demo video covering first source → connector → graph → agent → reviewed task. A screenshot is not a video.
-- [ ] Run final secret/working-tree review before publishing. Do not publish credentials or local `.data` files.
+- [x] Secret/working-tree review on October 17: tracked files and full history contain no `.env`, `.data`, keys or database files; pattern scan for API keys/private keys found none (one UI placeholder string). Repeat immediately before the public release.
 
 ## Phase 7 — Hosted delivery and submission
 

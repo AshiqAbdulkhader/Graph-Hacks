@@ -95,6 +95,15 @@ LIMIT 10
 
 Queries time out after 2 seconds, and API responses cap results. This is an interactive explorer, not an unlimited export endpoint.
 
+## Analysis and review features
+
+- **Version comparison.** In the source inspector, *Compare with current* shows a line diff between a historical version and the current one, plus the relationships added or removed across earlier versions.
+- **Impact preview.** Select an entity in the graph explorer and choose *Preview impact*. It lists entities that depend on it through active `DEPENDS_ON`, `PART_OF`, `IN_REPOSITORY`, `USES`, `REQUIRES` and `BLOCKED_BY` relationships (up to 3 hops) with their evidence paths. It is a read-only simulation.
+- **Conflict candidates.** The Review queue lists a subject and relationship that point at different targets in different current sources, with each source's quote. These are candidates, not proven contradictions: the product cannot tell whether a relationship may legitimately have several targets, and it only sees relationships already in the graph (declared in structured data or accepted from enrichment).
+- **Tasks.** Approved proposals become tasks; set them to open, in progress or done in the Review queue.
+
+Structured JSON/CSV record IDs are global to the workspace graph: two files that use the same node `id` describe the same entity. Use distinct IDs for distinct things.
+
 ## Verification
 
 ```powershell
@@ -103,7 +112,7 @@ Set-Location frontend
 npm run build
 ```
 
-Tests use real isolated FalkorDB graphs and LangChain fake models. They cover uploads, content versions, graph query write rejection, workspace isolation, key redaction, agent planning, citations, reviewed task persistence, GitHub App state/JWT/token behavior, and the original temporal regression fixture.
+Tests use real isolated FalkorDB graphs and LangChain fake models. They cover every advertised file format and parser errors, failed-job retry and restart recovery, source diffs, dependency impact, task lifecycle, conflict candidates, an end-to-end change-to-reviewed-task scenario, repository paging against a mocked GitHub API, uploads, content versions, graph query write rejection, workspace isolation, key redaction, agent planning, citations, reviewed task persistence, GitHub App state/JWT/token behavior, and the original temporal regression fixture.
 
 Live verification on October 17, 2026: a GitHub App was created and installed; a public `FalkorDB/falkordb` import produced 7 sources, 51 nodes and 53 relationships before optional enrichment. A real query returned author relations, and an OpenRouter free-model agent run returned 8 evidence passages with a connected model status. A recorded demo video and hosted deployment remain pending.
 
@@ -121,7 +130,7 @@ Hosted FalkorDB is deferred. When ready, configure host, port, username, passwor
 
 ## Delivery scope
 
-This is a working local product. Automatic scheduled/webhook sync, deletion reconciliation, OCR, large-scale search indexing, generic temporal decision diffs/counterfactuals, and a hosted multi-tenant release are not claimed as complete.
+This is a working local product. Automatic scheduled/webhook sync, deletion reconciliation, OCR, large-scale search indexing, counterfactual analysis beyond the read-only impact preview, contradiction detection from free text, and a hosted multi-tenant release are not claimed as complete.
 
 - [Architecture and data flows](architecture.md)
 - [Phases and remaining gates](plan.md)

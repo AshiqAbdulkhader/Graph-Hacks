@@ -112,6 +112,16 @@ Agent definitions contain a name and editable task instructions. Each run is sco
 
 OpenRouter accepts only `openrouter/free` or IDs ending `:free`. Free-provider outages/rate limits are expected operational states and shown as fallback results. LangChain fake models exercise planning and action behavior in tests without network requests.
 
+## Analysis endpoints
+
+- `GET /sources/{id}/diff` reconstructs a historical version from its overlapping passages and returns a bounded unified diff against the current version.
+- `GET /sources/{id}/changes` compares relationships written by earlier versions of a source (now inactive) with those of the current version.
+- `GET /analysis/conflicts` groups active `RELATED_TO` relationships by subject and predicate and returns groups whose targets differ across at least two sources, with quotes. Cardinality is unknown, so results are review candidates.
+- `GET /graph/impact` traverses dependency-type predicates toward the selected entity; it never writes to the graph.
+- `GET/PATCH /tasks` list tasks and update status (`open`, `in_progress`, `done`) with an audit event.
+
+All are scoped to the authorized workspace; a source or task from another workspace returns 404.
+
 ## Explorer and query contract
 
 - Cytoscape renders actual returned nodes and relationships, with pan/zoom, inspector, neighbor expansion and label/search filters.
@@ -132,7 +142,7 @@ OpenRouter accepts only `openrouter/free` or IDs ending `:free`. Free-provider o
 
 Meaningful tests exercise source versions, active retrieval, graph write rejection, account isolation, secret redaction, app states/JWTs, temporary token handling, LangChain planning and reviewed tasks. Live installation and repository sync have been exercised through GitHub, not only mocks.
 
-Still pending: automatic sync and deletion reconciliation, large-scale search indexing, generic temporal decision comparison/counterfactuals, a recorded demo, and hosted delivery. See [plan.md](plan.md) for delivery status.
+Still pending: automatic sync and deletion reconciliation, large-scale search indexing, counterfactual analysis beyond the read-only impact preview, text-only contradiction detection, a recorded demo, and hosted delivery. See [plan.md](plan.md) for delivery status.
 
 ## References
 
