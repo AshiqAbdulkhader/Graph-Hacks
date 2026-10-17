@@ -95,6 +95,42 @@ LIMIT 10
 
 Queries time out after 2 seconds, and API responses cap results. This is an interactive explorer, not an unlimited export endpoint.
 
+## Graph data model and the queries the product depends on
+
+FalkorDB is the primary store for company relationships and every agent answer: retrieval, relationship expansion, impact analysis, conflict detection and tasks are Cypher over the workspace graph (one graph per workspace). Without the graph the agent has no evidence paths and the explorer, impact and conflict features have nothing to run on.
+
+```text
+(Document)-[:HAS_VERSION]->(DocumentVersion {hash, active})-[:HAS_CHUNK]->(Chunk {text})
+(Entity:Person|Project|Repository|Issue|PullRequest|Record|Service|Task ...)-[:MENTIONED_IN]->(Chunk)
+(Entity)-[:RELATED_TO {predicate, source_id, version_id, quote, active}]->(Entity)
+(Task)-[:SUPPORTED_BY]->(Document)
+```
+
+Core queries (all parameterized; implemented in [`app/knowledge.py`](app/knowledge.py)):
+
+```cypher
+// Evidence retrieval over current passages
+MATCH (d:Document)-[:HAS_VERSION]->(v:DocumentVersion {active:true})-[:HAS_CHUNK]->(c:Chunk)
+WHERE toLower(c.text) CONTAINS $term
+RETURN d.name, c.text
+
+// Relationship paths with provenance (agent expansion, up to 3 hops)
+MATCH p=(a:Entity {id:$id})-[:RELATED_TO*1..3]-(b:Entity)
+WHERE all(r IN relationships(p) WHERE r.active = true)
+RETURN [n IN nodes(p)|n.name], [r IN relationships(p)|r.predicate], [r IN relationships(p)|r.source_id]
+
+// Dependency impact: what depends on this entity?
+MATCH p=(dependent:Entity)-[:RELATED_TO*1..3]->(root:Entity {id:$id})
+WHERE all(r IN relationships(p) WHERE r.active=true
+          AND r.predicate IN ['DEPENDS_ON','PART_OF','IN_REPOSITORY','USES','REQUIRES','BLOCKED_BY'])
+RETURN dependent.name, [n IN nodes(p)|n.name], length(p)
+
+// Version history of a source
+MATCH (d:Document {id:$id})-[:HAS_VERSION]->(v) RETURN v.hash, v.recorded_at, v.active
+```
+
+Conflict candidates group active `RELATED_TO` relationships by subject and predicate in application code and report groups whose targets differ across sources.
+
 ## Analysis and review features
 
 - **Version comparison.** In the source inspector, *Compare with current* shows a line diff between a historical version and the current one, plus the relationships added or removed across earlier versions.
@@ -135,5 +171,9 @@ This is a working local product. Automatic scheduled/webhook sync, deletion reco
 - [Architecture and data flows](architecture.md)
 - [Phases and remaining gates](plan.md)
 - [GitHub App setup reference](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest)
+
+## AI-assistance disclosure
+
+This project was built with AI coding assistants (OpenAI Codex for the initial implementation; Anthropic Claude Code for later features, tests and documentation). The assistants wrote much of the code under the author's direction; the author reviews and is responsible for it. Runtime agents use OpenRouter free models only, and every answer shows its source passages and graph paths.
 
 Built with AI coding assistance; implementation choices and tests remain reviewable in this repository. Intended Graph Hacks entries: Track 1 and Track 3. Use data permitted by the event rules for any public submission.
